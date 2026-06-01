@@ -3,6 +3,9 @@
 # ==========================================
 # Contains heavy compiled binaries and build artifacts
 src-tauri/target/
+target/
+
+
 
 # Tauri v2 Mobile build artifacts (Android / iOS)
 src-tauri/gen/
