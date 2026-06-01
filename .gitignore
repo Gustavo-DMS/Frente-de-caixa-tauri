@@ -3,7 +3,7 @@
 # ==========================================
 # Contains heavy compiled binaries and build artifacts
 src-tauri/target/
-target/
+**/target/
 
 
 
