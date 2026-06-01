@@ -1,0 +1,65 @@
+# ==========================================
+# Rust / Tauri Backend
+# ==========================================
+# Contains heavy compiled binaries and build artifacts
+src-tauri/target/
+
+# Tauri v2 Mobile build artifacts (Android / iOS)
+src-tauri/gen/
+src-tauri/.bundle/
+
+# Local Tauri CLI log files
+*.log
+src-tauri/*.log
+
+# ==========================================
+# Frontend (Node / Bun / Yarn / Pnpm)
+# ==========================================
+# Dependency directories
+node_modules/
+.pnpm-store/
+
+# Frontend build outputs (Adapt if using something other than /dist)
+dist/
+build/
+.next/
+.nuxt/
+out/
+
+# Log files
+npm-debug.log*
+yarn-debug.log*
+yarn-error.log*
+pnpm-debug.log*
+bun-debug.log*
+
+# ==========================================
+# Environment Variables & Security
+# ==========================================
+# Private keys, certificates, or local variables
+.env
+.env.local
+.env.*.local
+*.pfx
+*.keystore
+
+# ==========================================
+# IDEs and System Files
+# ==========================================
+# macOS system files
+.DS_Store
+.AppleDouble
+.LSOverride
+
+# Windows system files
+Thumbs.db
+ehthumbs.db
+
+# IDE specific files
+.vscode/
+.idea/
+*.suo
+*.ntvs*
+*.njsproj
+*.sln
+*.swp
