@@ -10,6 +10,21 @@ import { z } from "zod";
 import { FinalizarVenda } from "@/components/frenteCaixa/finalizarVenda";
 import { invoke } from "@tauri-apps/api/core";
 
+function debounce(func: any, delay = 300) {
+  let timerId: any;
+
+  return function (...args: any) {
+    // Clear the previous timer if the user is still typing/pressing keys
+    clearTimeout(timerId);
+
+    // Set a new timer to execute the function after the delay
+    timerId = setTimeout(() => {
+      //@ts-ignore
+      func.apply(this, args);
+    }, delay);
+  };
+}
+
 export const formSchema = z.object({
   itens: z.array(
     z.object({
@@ -90,6 +105,42 @@ function Index() {
 
   const { venda } = Route.useSearch();
 
+  function handleKeyDown(e: KeyboardEvent) {
+    if (e.key === "k" && (e.metaKey || e.ctrlKey)) {
+      e.preventDefault();
+      inputRef.current?.focus();
+    }
+    if (e.key === "j" && (e.metaKey || e.ctrlKey)) {
+      e.preventDefault();
+      qtdRef.current?.focus();
+    }
+    if (e.key === "l" && (e.metaKey || e.ctrlKey)) {
+      e.preventDefault();
+      descontoRef.current?.focus();
+    }
+    if (e.key === "Enter" && (e.metaKey || e.ctrlKey)) {
+      e.preventDefault();
+      if (!form.formState.isSubmitting) {
+        console.log("Submitting form with keyboard shortcut");
+        form.handleSubmit(onSubmit)();
+      }
+    }
+    if (e.key === "n" && (e.metaKey || e.ctrlKey)) {
+      e.preventDefault();
+      form.reset({
+        itens: [],
+        desconto: 0,
+      });
+      setIdVenda(undefined);
+    }
+    if (e.key === "p" && (e.metaKey || e.ctrlKey)) {
+      console.log("Printing with keyboard shortcut");
+      e.preventDefault();
+      window.print();
+    }
+  }
+  const debouncedHandler = debounce(handleKeyDown, 500);
+
   useEffect(() => {
     setIdVenda(venda);
   }, [venda]);
@@ -114,36 +165,12 @@ function Index() {
     setOpen(false);
   }
 
-  document.addEventListener("keydown", (e) => {
-    if (e.key === "k" && (e.metaKey || e.ctrlKey)) {
-      inputRef.current?.focus();
-    }
-    if (e.key === "j" && (e.metaKey || e.ctrlKey)) {
-      qtdRef.current?.focus();
-    }
-    if (e.key === "l" && (e.metaKey || e.ctrlKey)) {
-      descontoRef.current?.focus();
-    }
-    if (e.key === "Enter" && (e.metaKey || e.ctrlKey)) {
-      e.preventDefault();
-      if (!form.formState.isSubmitting) {
-        console.log("Submitting form with keyboard shortcut");
-        form.handleSubmit(onSubmit)();
-      }
-    }
-    if (e.key === "n" && (e.metaKey || e.ctrlKey)) {
-      e.preventDefault();
-      form.reset({
-        itens: [],
-        desconto: 0,
-      });
-      setIdVenda(undefined);
-    }
-    if (e.key === "p" && (e.metaKey || e.ctrlKey)) {
-      e.preventDefault();
-      window.print();
-    }
-  });
+  useEffect(() => {
+    document.addEventListener("keydown", debouncedHandler);
+    return () => {
+      window.removeEventListener("keydown", debouncedHandler);
+    };
+  }, []);
 
   const formData = useWatch({
     control: form.control,
