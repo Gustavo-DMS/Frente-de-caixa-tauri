@@ -1,7 +1,6 @@
 import { Button } from "@/components/ui/button";
 import { createFileRoute } from "@tanstack/react-router";
 import { invoke } from "@tauri-apps/api/core";
-import { save } from "@tauri-apps/plugin-dialog";
 
 export const Route = createFileRoute("/_base/exportar/")({
   component: RouteComponent,
