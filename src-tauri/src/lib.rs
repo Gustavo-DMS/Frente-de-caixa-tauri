@@ -2,7 +2,9 @@ mod db;
 
 use csv::ReaderBuilder;
 use serde::{Deserialize, Serialize};
-use tauri::{Manager, State};
+use sqlx::Row;
+use tauri::{AppHandle, Manager, State};
+use tauri_plugin_dialog::DialogExt;
 use tauri_plugin_sql::{Migration, MigrationKind};
 
 use sqlx::SqlitePool;
@@ -27,10 +29,18 @@ where
 }
 
 #[derive(Debug, Deserialize)]
-struct Produto {
+struct ProdutoCsv {
     nome: String,
     sku: String,
     #[serde(deserialize_with = "deserialize_decimal")]
+    preco: f64,
+    quantity: Option<u32>,
+}
+
+#[derive(Debug, Deserialize)]
+struct ProdutoJson {
+    nome: String,
+    sku: String,
     preco: f64,
     quantity: Option<u32>,
 }
@@ -52,9 +62,9 @@ async fn insert_produtos(
         .map_err(|e| e.to_string())?;
     // let mut rdr = Reader::from_path(csv_path).map_err(|e| e.to_string())?;
 
-    let records: Vec<Produto> = rdr
+    let records: Vec<ProdutoCsv> = rdr
         .deserialize()
-        .collect::<Result<Vec<Produto>, _>>()
+        .collect::<Result<Vec<ProdutoCsv>, _>>()
         .map_err(|e| e.to_string())?;
 
     let mut tx = state.db.begin().await.map_err(|e| e.to_string())?;
@@ -111,7 +121,7 @@ async fn process_sale(
 ) -> Result<InsertResponse, String> {
     let mut tx = state.db.begin().await.map_err(|e| e.to_string())?;
 
-    let items_parsed: Vec<Produto> = serde_json::from_str(items).map_err(|e| {
+    let items_parsed: Vec<ProdutoJson> = serde_json::from_str(items).map_err(|e| {
         println!("JSON ERROR: {:?}", e);
         e.to_string()
     })?;
@@ -170,6 +180,100 @@ async fn process_sale(
         status: true,
         rows_updated: id_venda as usize,
     })
+}
+
+#[derive(Debug, Deserialize, Serialize)]
+struct ProdutoVenda {
+    sku: String,
+    nome: String,
+    preco: f64,
+    quantidade: i64,
+}
+
+#[derive(Debug, Serialize)]
+struct VendaFinal {
+    id: i64,
+    data_venda: String,
+    desconto: f64,
+    valor_total: f64,
+    valor_desconto: f64,
+    status: String,
+    produtos: Vec<ProdutoVenda>,
+}
+
+#[tauri::command]
+async fn exportar_vendas(state: State<'_, AppState>, app_handdle: AppHandle) -> Result<(), String> {
+    let mut tx = state.db.begin().await.map_err(|e| e.to_string())?;
+
+    let rows = sqlx::query(
+        r#"
+        SELECT
+            v.id,
+            v.data_venda,
+            v.desconto,
+            v.valor_total,
+            v.valor_desconto,
+            v.status,
+
+            COALESCE(
+                json_group_array(
+                    json_object(
+                        'sku', p.SKU,
+                        'nome', p.nome,
+                        'preco', p.preco,
+                        'quantidade', iv.quantidade
+                    )
+                ),
+                '[]'
+            ) AS produtos
+
+        FROM vendas v
+        LEFT JOIN itens_venda iv ON iv.venda_id = v.id
+        LEFT JOIN produtos p ON p.SKU = iv.produto_sku
+        GROUP BY v.id
+        "#,
+    )
+    .fetch_all(&mut *tx) // ✅ IMPORTANT FIX
+    .await
+    .map_err(|e| e.to_string())?;
+
+    let mut result = Vec::new();
+
+    for row in rows {
+        let produtos_str: String = row.get("produtos");
+
+        let produtos: Vec<ProdutoVenda> = serde_json::from_str(&produtos_str).unwrap_or_default();
+
+        result.push(VendaFinal {
+            id: row.get("id"),
+            data_venda: row.get("data_venda"),
+            desconto: row.get("desconto"),
+            valor_total: row.get("valor_total"),
+            valor_desconto: row.get("valor_desconto"),
+            status: row.get("status"),
+            produtos,
+        });
+    }
+
+    tx.commit().await.map_err(|e| e.to_string())?;
+
+    println!("{}", serde_json::to_string_pretty(&result).unwrap());
+    let res = serde_json::to_string_pretty(&result).unwrap();
+    let file_path = app_handdle
+        .dialog()
+        .file()
+        .add_filter("json", &["json"])
+        .set_file_name("vendas_exportadas.json")
+        .blocking_save_file();
+
+    if let Some(path) = file_path {
+        println!("Selected file path: {:?}", path);
+        std::fs::write(path.to_string(), res.clone()).map_err(|e| e.to_string())?;
+        return Ok(());
+    } else {
+        println!("No file selected");
+        return Err("No file selected".to_string());
+    }
 }
 
 #[cfg_attr(mobile, tauri::mobile_entry_point)]
@@ -235,7 +339,8 @@ pub fn run() {
         .invoke_handler(tauri::generate_handler![
             greet,
             insert_produtos,
-            process_sale
+            process_sale,
+            exportar_vendas
         ])
         .run(tauri::generate_context!())
         .expect("error while running tauri application");
