@@ -1,6 +1,6 @@
 mod db;
 
-use csv::Reader;
+use csv::ReaderBuilder;
 use serde::{Deserialize, Serialize};
 use tauri::{Manager, State};
 use tauri_plugin_sql::{Migration, MigrationKind};
@@ -15,11 +15,22 @@ pub struct AppState {
 fn greet(name: &str) -> String {
     format!("Hello, {}! You've been greeted from Rust Hotreload?", name)
 }
+fn deserialize_decimal<'de, D>(deserializer: D) -> Result<f64, D::Error>
+where
+    D: serde::Deserializer<'de>,
+{
+    let s = String::deserialize(deserializer)?;
+
+    s.replace(',', ".")
+        .parse::<f64>()
+        .map_err(serde::de::Error::custom)
+}
 
 #[derive(Debug, Deserialize)]
 struct Produto {
     nome: String,
     sku: String,
+    #[serde(deserialize_with = "deserialize_decimal")]
     preco: f64,
     quantity: Option<u32>,
 }
@@ -35,7 +46,11 @@ async fn insert_produtos(
     state: State<'_, AppState>,
     csv_path: &str,
 ) -> Result<InsertResponse, String> {
-    let mut rdr = Reader::from_path(csv_path).map_err(|e| e.to_string())?;
+    let mut rdr = ReaderBuilder::new()
+        .delimiter(b';') // Accepts a single byte (e.g., b';', b'\t', b'|')
+        .from_path(csv_path)
+        .map_err(|e| e.to_string())?;
+    // let mut rdr = Reader::from_path(csv_path).map_err(|e| e.to_string())?;
 
     let records: Vec<Produto> = rdr
         .deserialize()
