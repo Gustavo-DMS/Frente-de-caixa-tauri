@@ -137,6 +137,29 @@ async fn process_sale(
     );
 
     let id_venda = if let Some(id) = venda_id {
+        sqlx::query(
+            r#"
+            DELETE FROM itens_venda WHERE venda_id = ?
+            "#,
+        )
+        .bind(id)
+        .execute(&mut *tx)
+        .await
+        .unwrap();
+        sqlx::query(
+            r#"
+            UPDATE vendas
+            SET desconto = ?, valor_total = ?, valor_desconto = ?
+            WHERE id = ?
+            "#,
+        )
+        .bind(desconto)
+        .bind(valor_total)
+        .bind(valor_desconto)
+        .bind(id)
+        .execute(&mut *tx)
+        .await
+        .unwrap();
         id
     } else {
         sqlx::query(
@@ -269,10 +292,10 @@ async fn exportar_vendas(state: State<'_, AppState>, app_handdle: AppHandle) -> 
     if let Some(path) = file_path {
         println!("Selected file path: {:?}", path);
         std::fs::write(path.to_string(), res.clone()).map_err(|e| e.to_string())?;
-        return Ok(());
+        Ok(())
     } else {
         println!("No file selected");
-        return Err("No file selected".to_string());
+        Err("No file selected".to_string())
     }
 }
 

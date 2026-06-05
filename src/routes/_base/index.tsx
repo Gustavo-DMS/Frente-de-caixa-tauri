@@ -4,26 +4,11 @@ import { InfosFinais } from "@/components/frenteCaixa/infos";
 import { db } from "@/lib/utils";
 import { zodResolver } from "@hookform/resolvers/zod";
 import { createFileRoute } from "@tanstack/react-router";
-import { useEffect, useRef, useState } from "react";
+import { useCallback, useEffect, useRef, useState } from "react";
 import { useForm, useWatch } from "react-hook-form";
 import { z } from "zod";
 import { FinalizarVenda } from "@/components/frenteCaixa/finalizarVenda";
 import { invoke } from "@tauri-apps/api/core";
-
-function debounce(func: any, delay = 300) {
-  let timerId: any;
-
-  return function (...args: any) {
-    // Clear the previous timer if the user is still typing/pressing keys
-    clearTimeout(timerId);
-
-    // Set a new timer to execute the function after the delay
-    timerId = setTimeout(() => {
-      //@ts-ignore
-      func.apply(this, args);
-    }, delay);
-  };
-}
 
 export const formSchema = z.object({
   itens: z.array(
@@ -105,42 +90,6 @@ function Index() {
 
   const { venda } = Route.useSearch();
 
-  function handleKeyDown(e: KeyboardEvent) {
-    if (e.key === "k" && (e.metaKey || e.ctrlKey)) {
-      e.preventDefault();
-      inputRef.current?.focus();
-    }
-    if (e.key === "j" && (e.metaKey || e.ctrlKey)) {
-      e.preventDefault();
-      qtdRef.current?.focus();
-    }
-    if (e.key === "l" && (e.metaKey || e.ctrlKey)) {
-      e.preventDefault();
-      descontoRef.current?.focus();
-    }
-    if (e.key === "Enter" && (e.metaKey || e.ctrlKey)) {
-      e.preventDefault();
-      if (!form.formState.isSubmitting) {
-        console.log("Submitting form with keyboard shortcut");
-        form.handleSubmit(onSubmit)();
-      }
-    }
-    if (e.key === "n" && (e.metaKey || e.ctrlKey)) {
-      e.preventDefault();
-      form.reset({
-        itens: [],
-        desconto: 0,
-      });
-      setIdVenda(undefined);
-    }
-    if (e.key === "p" && (e.metaKey || e.ctrlKey)) {
-      console.log("Printing with keyboard shortcut");
-      e.preventDefault();
-      window.print();
-    }
-  }
-  const debouncedHandler = debounce(handleKeyDown, 500);
-
   useEffect(() => {
     setIdVenda(venda);
   }, [venda]);
@@ -150,13 +99,51 @@ function Index() {
     defaultValues: resgate,
   });
 
+  const handleKeyDown = useCallback(
+    (e: KeyboardEvent) => {
+      if (e.key === "k" && (e.metaKey || e.ctrlKey)) {
+        e.preventDefault();
+        inputRef.current?.focus();
+      }
+      if (e.key === "j" && (e.metaKey || e.ctrlKey)) {
+        e.preventDefault();
+        qtdRef.current?.focus();
+      }
+      if (e.key === "l" && (e.metaKey || e.ctrlKey)) {
+        e.preventDefault();
+        descontoRef.current?.focus();
+      }
+      if (e.key === "Enter" && (e.metaKey || e.ctrlKey)) {
+        e.preventDefault();
+        if (!form.formState.isSubmitting) {
+          console.log("Submitting form with keyboard shortcut");
+          form.handleSubmit(onSubmit)();
+        }
+      }
+      if (e.key === "n" && (e.metaKey || e.ctrlKey)) {
+        e.preventDefault();
+        form.reset({
+          itens: [],
+          desconto: 0,
+        });
+        setIdVenda(undefined);
+      }
+      if (e.key === "p" && (e.metaKey || e.ctrlKey)) {
+        console.log("Printing with keyboard shortcut");
+        e.preventDefault();
+        window.print();
+      }
+    },
+    [form, onSubmit],
+  );
+
   async function onSubmit(data: z.infer<typeof formSchema>) {
     setOpen(true);
     try {
       const response: InsertResponse = await invoke("process_sale", {
         items: JSON.stringify(data.itens),
         desconto: data.desconto,
-        vendaId: venda ? parseInt(venda) : undefined,
+        vendaId: idVenda ? parseInt(idVenda) : undefined,
       });
       setIdVenda(`${response.rows_updated}`);
     } catch (error) {
@@ -166,11 +153,11 @@ function Index() {
   }
 
   useEffect(() => {
-    document.addEventListener("keydown", debouncedHandler);
+    document.addEventListener("keydown", handleKeyDown);
     return () => {
-      window.removeEventListener("keydown", debouncedHandler);
+      document.removeEventListener("keydown", handleKeyDown);
     };
-  }, []);
+  }, [handleKeyDown]);
 
   const formData = useWatch({
     control: form.control,
